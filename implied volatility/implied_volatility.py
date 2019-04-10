@@ -9,7 +9,9 @@ from math import exp, log, sqrt
 from scipy.stats import norm
 from collections import defaultdict
 from scipy.optimize import brentq
-#from scipy.optimize import fsolve
+
+
+# from scipy.optimize import fsolve
 
 def bs_value(S0, K, r, sigma, T):
     '''
@@ -28,16 +30,18 @@ def bs_value(S0, K, r, sigma, T):
     Returns:
         期权的B-S价格            
     '''
-    d1 = (log(S0 / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrt(T))
+    d1 = (log(S0 / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt(T))
     d2 = d1 - sigma * sqrt(T)
-    return S0 * norm.cdf(d1) - K * exp(-r * T) * norm.cdf(d2)           
+    return S0 * norm.cdf(d1) - K * exp(-r * T) * norm.cdf(d2)
+
 
 def bs_vega(S0, K, r, sigma, T):
     '''
     计算期权的vega
     '''
-    d1 = (log(S0 / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrt(T))
+    d1 = (log(S0 / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt(T))
     return S0 * norm.pdf(d1) * sqrt(T)
+
 
 def pseudo_mc(close, n, M=1200):
     '''
@@ -55,7 +59,8 @@ def pseudo_mc(close, n, M=1200):
     '''
     PL = (close[n + i] / close[i] - 1 for i in range(M)
           if close[n + i] > close[i])
-    return sum(PL) / M       
+    return sum(PL) / M
+
 
 def implied(close, r, sigma=0.5, S0=1, K=1, T=0.25, days=240, M=1200, N=50):
     '''
@@ -73,8 +78,9 @@ def implied(close, r, sigma=0.5, S0=1, K=1, T=0.25, days=240, M=1200, N=50):
         vega = bs_vega(S0, K, r, sigma, T)
         sigma -= (value - price) / vega
     return sigma
-    
-def rolling_implied(close, shibor, sigma=0.5, S0=1, K=1, T=0.25, days=240, 
+
+
+def rolling_implied(close, shibor, sigma=0.5, S0=1, K=1, T=0.25, days=240,
                     M=1200, N=50):
     '''
     计算隐含波动率序列
@@ -97,31 +103,35 @@ def rolling_implied(close, shibor, sigma=0.5, S0=1, K=1, T=0.25, days=240,
             r = 0.03
         iv[date] = implied(close_i, r, sigma, S0, K, T, days, M, N)
     return iv
-    
+
+
 def hedge_cost(close, r, sigma, T=0.25, days=240):
     '''
     计算delta-中性对冲后的损益
     '''
     n = int(T * days)
     S0 = K = close[0]
-    d1_0 = (log(S0 / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrt(T))
+    d1_0 = (log(S0 / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt(T))
     delta_0 = norm.cdf(d1_0)
     cash_0 = S0 * delta_0 * (1 + r / days)
     d = defaultdict(list)
-    d['delta'].append(delta_0); d['cash'].append(cash_0)
+    d['delta'].append(delta_0);
+    d['cash'].append(cash_0)
     for i in range(1, n + 1):
         T_i = T - i / days
-        if T_i == 0: # 期权到期时， T_i=0，进行特别处理以避免出现ZeroDivisionErro
-            delta_i = 1 if close[n] > K else 0 
+        if T_i == 0:  # 期权到期时， T_i=0，进行特别处理以避免出现ZeroDivisionErro
+            delta_i = 1 if close[n] > K else 0
         else:
-            d1_i = (log(close[i] / K) + (r + 0.5 * sigma**2) * T_i)\
-                 / (sigma * sqrt(T_i))
+            d1_i = (log(close[i] / K) + (r + 0.5 * sigma ** 2) * T_i) \
+                   / (sigma * sqrt(T_i))
             delta_i = norm.cdf(d1_i)
-        trade_i = delta_i - d['delta'][i-1]
-        cash_i = (d['cash'][i -1] + trade_i * close[i]) * (1 + r / days)
-        d['delta'].append(delta_i); d['cash'].append(cash_i)        
+        trade_i = delta_i - d['delta'][i - 1]
+        cash_i = (d['cash'][i - 1] + trade_i * close[i]) * (1 + r / days)
+        d['delta'].append(delta_i);
+        d['cash'].append(cash_i)
     pl = d['cash'][n] - K if close[n] > K else d['cash'][n]
     return pl / (1 + r * T)
+
 
 def equation(sigma, close=None, shibor=None, T=0.25):
     '''
@@ -138,6 +148,7 @@ def equation(sigma, close=None, shibor=None, T=0.25):
     price = hedge_cost(close, r, sigma)
     return value - price
 
+
 def solve(func, close, shibor):
     '''
     求解满足方程equation的sigma
@@ -148,8 +159,9 @@ def solve(func, close, shibor):
     Returns:
         对冲隐含波动率
     '''
-#    return fsolve(func, 0.3, args=(close, shibor))[0]
+    #    return fsolve(func, 0.3, args=(close, shibor))[0]
     return brentq(func, 0.05, 1, args=(close, shibor))
+
 
 def rolling_hedge(close, shibor, T=0.25, days=240):
     '''
@@ -157,20 +169,22 @@ def rolling_hedge(close, shibor, T=0.25, days=240):
     '''
     C = len(close)
     n = int(T * days)
-    iv= {}
+    iv = {}
     for i in range(C - n - 1):
         close_i = close[i: n + i + 1]
         date = close_i.index[0]
         iv[date] = solve(equation, close_i, shibor)
-    return iv    
+    return iv
+
 
 if __name__ == '__main__':
     import pandas as pd
     import matplotlib.pyplot as plt
-    
-    zz500 = pd.read_excel('e:/data/zz500.xlsx')
+
+    zz500 = pd.read_excel('/Users/joyjigsaw/Documents/Github_Doc/Volatility_of_Options/data/zz500.xlsx')
     zz500.set_index(pd.to_datetime(zz500['date']), inplace=True)
-    shibor = pd.read_excel('E:/data/shibor_3M.xlsx', index_col='date')
+    shibor = pd.read_excel('/Users/joyjigsaw/Documents/Github_Doc/Volatility_of_Options/data/shibor_3M.xlsx',
+                           index_col='date')
 
     close = zz500['close']
     # 以第一种方法计算的隐含波动率
@@ -186,9 +200,9 @@ if __name__ == '__main__':
     plt.title('Implied Volatility, zz500', fontsize=16)
     plt.legend(fontsize='14')
     plt.savefig('implied volatility.png', bbox_inches='tight')
-    
+
     # 在rolling_hedge中设置N=20, 50, 100，耗时和得到的结果均只是略有差异
-    iv_hedge = pd.Series(rolling_hedge(close, shibor)) # 对冲隐含波动率
+    iv_hedge = pd.Series(rolling_hedge(close, shibor))  # 对冲隐含波动率
     plt.figure()
     iv_hedge.plot(figsize=(15, 8), fontsize=14)
     plt.title('Hedged Implied Volatility', fontsize=16)
